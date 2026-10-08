@@ -170,7 +170,8 @@ export class World extends Phaser.Scene {
     if (!this.anims.exists(anim)) this.anims.create({ key: anim, frames: this.anims.generateFrameNumbers(tex, { frames: pixelserialFrames('idle', 'down') }), frameRate: 4, repeat: -1 });
     const npc = this.physics.add.sprite(a.rect.x + a.rect.w / 2, a.rect.y + a.rect.h, tex).setOrigin(0.5, 1).setImmovable(true);
     (npc.body as Phaser.Physics.Arcade.Body).setSize(12, 8).setOffset(10, 22);
-    npc.setDepth(5 + npc.y / 10000).play(anim);
+    // body.bottom ainda está desatualizado na criação (a posição do corpo só se acerta no 1º passo): base = topo do sprite + offset 22 + altura 8.
+    npc.setDepth(5 + (npc.y - 32 + 22 + 8) / 10000).play(anim);
     this.physics.add.collider(this.player, npc);
   }
 
@@ -183,7 +184,7 @@ export class World extends Phaser.Scene {
 
   private animate(walking: boolean): void {
     this.player.anims.play(`${this.player.texture.key}-${walking ? 'walk' : 'idle'}-${this.facing}`, true);
-    this.player.setDepth(5 + this.player.y / 10000);
+    this.player.setDepth(5 + (this.player.body as Phaser.Physics.Arcade.Body).bottom / 10000);
   }
 
   private enter(a: Area): void {
