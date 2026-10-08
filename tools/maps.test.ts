@@ -1,12 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMap, LAB_MAP, MAPS, type MapSpec } from './maps.ts';
-import { contains, parseAreas, type Area, type TiledObject } from '../src/areas.ts';
+import { readdirSync, readFileSync } from 'node:fs';
+import { buildMap, LAB_MAP, MAPS } from './maps.ts';
+import type { MapSpec } from './maps.ts';
+import { contains, parseAreas } from '../src/areas.ts';
+import type { Area, TiledObject } from '../src/areas.ts';
 
 type Built = ReturnType<typeof buildMap>;
+/** Só o que o lint lê de um .tmj publicado. `name` é o nome do arquivo sem `.tmj`. */
+type Shipped = { name: string; layers: { name: string; objects?: TiledObject[] }[] };
 const tileLayer = (m: Built, name: string) => m.layers.find(l => l.name === name) as { data: number[] };
-const areasOf = (m: Built) => parseAreas((m.layers.find(l => l.name === 'areas') as { objects: TiledObject[] }).objects);
 const built = MAPS.map(spec => ({ spec, map: buildMap(spec) }));
+
+const MAPS_DIR = new URL('../public/maps/', import.meta.url);
+/** Os .tmj publicados, lidos do disco: é isso que o jogo carrega, não o que `buildMap` produziria agora. */
+function shippedMaps(): Shipped[] {
+  return readdirSync(MAPS_DIR).filter(f => f.endsWith('.tmj')).sort().map(f => ({
+    name: f.slice(0, -'.tmj'.length),
+    layers: (JSON.parse(readFileSync(new URL(f, MAPS_DIR), 'utf8')) as { layers: Shipped['layers'] }).layers,
+  }));
+}
+const shippedAreas = (m: Shipped) => {
+  const layer = m.layers.find(l => l.name === 'areas');
+  assert.ok(layer?.objects, `${m.name}: sem camada areas`);
+  return parseAreas(layer.objects);
+};
 
 test('every tile layer has width × height cells', () => {
   for (const { map } of built) {
@@ -31,26 +49,33 @@ test('lab uses the expected gids for floor, wall ends, cap, benches and items', 
   assert.equal(at('floor', 0, 0), 0);
 });
 
+test('public/maps has a shipped .tmj for every spec in MAPS', () => {
+  const names = shippedMaps().map(m => m.name);
+  assert.ok(names.length > 0, 'public/maps está vazio: rode npm run maps');
+  for (const spec of MAPS) assert.ok(names.includes(spec.name), `falta public/maps/${spec.name}.tmj: rode npm run maps`);
+});
+
 test('the areas of every map parse without warnings', () => {
-  for (const { spec, map } of built) assert.deepEqual(areasOf(map).warnings, [], spec.name);
+  for (const m of shippedMaps()) assert.deepEqual(shippedAreas(m).warnings, [], m.name);
 });
 
 test('no entry sits inside a door (the player would bounce between maps)', () => {
-  for (const { spec, map } of built) {
-    const areas = areasOf(map).areas;
+  for (const m of shippedMaps()) {
+    const areas = shippedAreas(m).areas;
     for (const e of areas.filter(a => a.kind === 'entry')) {
       const c = { x: e.rect.x + e.rect.w / 2, y: e.rect.y + e.rect.h / 2 };
-      for (const d of areas.filter(a => a.kind === 'door')) assert.equal(contains(d.rect, c.x, c.y), false, `${spec.name}: ${e.name} dentro de ${d.name}`);
+      for (const d of areas.filter(a => a.kind === 'door')) assert.equal(contains(d.rect, c.x, c.y), false, `${m.name}: ${e.name} dentro de ${d.name}`);
     }
   }
 });
 
 test('every door points to a built map and an entry that exists there', () => {
-  const entries = new Map(built.map(({ spec, map }) => [spec.name, areasOf(map).areas.filter(a => a.kind === 'entry').map(a => a.name)]));
-  for (const { spec, map } of built) {
-    for (const d of areasOf(map).areas.filter((a): a is Extract<Area, { kind: 'door' }> => a.kind === 'door')) {
-      assert.ok(entries.has(d.map), `${spec.name}: porta para mapa inexistente ${d.map}`);
-      assert.ok(entries.get(d.map)!.includes(d.entry), `${spec.name}: entry ${d.entry} não existe em ${d.map}`);
+  const maps = shippedMaps();
+  const entries = new Map(maps.map(m => [m.name, shippedAreas(m).areas.filter(a => a.kind === 'entry').map(a => a.name)]));
+  for (const m of maps) {
+    for (const d of shippedAreas(m).areas.filter((a): a is Extract<Area, { kind: 'door' }> => a.kind === 'door')) {
+      assert.ok(entries.has(d.map), `${m.name}: porta para mapa inexistente ${d.map}`);
+      assert.ok(entries.get(d.map)!.includes(d.entry), `${m.name}: entry ${d.entry} não existe em ${d.map}`);
     }
   }
 });
