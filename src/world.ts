@@ -6,7 +6,7 @@ import { composeLayers } from './compose.ts';
 import { openDialog, press, reveal, type Dialog } from './dialog.ts';
 import * as ui from './ui.ts';
 
-const SPEED = 80, RUN = 150, ZOOM = 3, TALK_PAD = 10, FEET = 12;
+const SPEED = 80, RUN = 150, ZOOM = 3, TALK_PAD = 16, FEET = 12;
 const DIRS: Dir[] = ['right', 'up', 'left', 'down'];
 type Point = { x: number; y: number };
 export type WorldData = { map: string; entry: string; pos?: Point; prev?: { map: string; entry: string } };
@@ -24,6 +24,7 @@ export class World extends Phaser.Scene {
   private keys!: Keys;
   private areas: Area[] = [];
   private inside = new Set<Area>();
+  private panelArea: Extract<Area, { kind: 'website' }> | null = null;
   private sounds = new Map<Area, Phaser.Sound.BaseSound>();
   private dialog: Dialog | null = null;
   private facing: Dir = 'down';
@@ -40,6 +41,7 @@ export class World extends Phaser.Scene {
     this.here = data;
     this.areas = [];
     this.inside = new Set();
+    this.panelArea = null;
     this.sounds = new Map();
     this.dialog = null;
     this.facing = 'down';
@@ -63,7 +65,9 @@ export class World extends Phaser.Scene {
       return layer.setDepth(prop(l.properties, 'above') === true ? 10 : 0).setCollisionByProperty({ collides: true });
     });
 
-    const parsed = parseAreas((map.getObjectLayer('areas')?.objects ?? []) as TiledObject[]);
+    // O Phaser 4.2.1 descarta o campo `class` dos objetos; lê-se o JSON cru (cache: { format, data }).
+    const raw = this.cache.tilemap.get(key).data as { layers: { type: string; name: string; objects?: TiledObject[] }[] };
+    const parsed = parseAreas(raw.layers.find(l => l.type === 'objectgroup' && l.name === 'areas')?.objects ?? []);
     parsed.warnings.forEach(w => console.warn(w));
     this.areas = parsed.areas;
 
@@ -91,10 +95,12 @@ export class World extends Phaser.Scene {
       this.load.start();
     }
 
-    ui.showBanner(String(prop(map.properties, 'name') ?? this.here.map));
+    const title = String(prop(map.properties, 'name') ?? '').trim();
+    if (!title) console.warn(`[areas] mapa "${this.here.map}" sem propriedade "name"`);
+    ui.showBanner(title || this.here.map);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, fit);
-      this.sounds.forEach(s => s.destroy());
+      this.sound.removeAll();
       ui.showDialog(null);
       ui.showPrompt(null);
       ui.closePanel();
@@ -132,9 +138,13 @@ export class World extends Phaser.Scene {
     const fx = this.player.x, fy = this.player.y + FEET;
     const now = new Set(this.areas.filter(a => contains(a.rect, fx, fy)));
     for (const a of now) if (!this.inside.has(a)) this.enter(a);
-    for (const a of this.inside) if (!now.has(a) && a.kind === 'website') ui.closePanel();
     this.inside = now;
     if (this.leaving) return;
+    const pa = this.panelArea;
+    if (pa && !(pa.trigger === 'enter' ? now.has(pa) : near(pa.rect, fx, fy, TALK_PAD))) {
+      ui.closePanel();
+      this.panelArea = null;
+    }
 
     const target = this.areas.find(a => (a.kind === 'sign' || a.kind === 'npc' || (a.kind === 'website' && a.trigger === 'key')) && near(a.rect, fx, fy, TALK_PAD));
     ui.showPrompt(target ? this.toScreen(target.rect.x + target.rect.w / 2, target.rect.y - (target.kind === 'npc' ? 26 : 2)) : null);
@@ -169,9 +179,10 @@ export class World extends Phaser.Scene {
     const anim = `${tex}-idle-down`;
     if (!this.anims.exists(anim)) this.anims.create({ key: anim, frames: this.anims.generateFrameNumbers(tex, { frames: pixelserialFrames('idle', 'down') }), frameRate: 4, repeat: -1 });
     const npc = this.physics.add.sprite(a.rect.x + a.rect.w / 2, a.rect.y + a.rect.h, tex).setOrigin(0.5, 1).setImmovable(true);
-    (npc.body as Phaser.Physics.Arcade.Body).setSize(12, 8).setOffset(10, 22);
-    // body.bottom ainda está desatualizado na criação (a posição do corpo só se acerta no 1º passo): base = topo do sprite + offset 22 + altura 8.
-    npc.setDepth(5 + (npc.y - 32 + 22 + 8) / 10000).play(anim);
+    // O corpo desce ~12 px além dos pés visuais, para o jogador parar abaixo do NPC sem cobri-lo por inteiro.
+    (npc.body as Phaser.Physics.Arcade.Body).setSize(12, 20).setOffset(10, 22);
+    // Profundidade pelos pés VISUAIS (topo do sprite + 22 + 8 = npc.y - 2), não pela base do corpo (body.bottom está desatualizado na criação).
+    npc.setDepth(5 + (npc.y - 2) / 10000).play(anim);
     this.physics.add.collider(this.player, npc);
   }
 
@@ -189,11 +200,16 @@ export class World extends Phaser.Scene {
 
   private enter(a: Area): void {
     if (a.kind === 'door') this.go({ map: a.map, entry: a.entry });
-    else if (a.kind === 'website' && a.trigger === 'enter') ui.openPanel(a.url);
+    else if (a.kind === 'website' && a.trigger === 'enter') this.openSite(a);
+  }
+
+  private openSite(a: Extract<Area, { kind: 'website' }>): void {
+    this.panelArea = a;
+    ui.openPanel(a.url);
   }
 
   private interact(a: Area): void {
-    if (a.kind === 'website') return ui.openPanel(a.url);
+    if (a.kind === 'website') return this.openSite(a);
     if (a.kind !== 'sign' && a.kind !== 'npc') return;
     this.dialog = openDialog(a.kind === 'npc' ? a.label : '', a.pages);
     ui.showPrompt(null);

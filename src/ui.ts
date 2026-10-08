@@ -132,9 +132,13 @@ export function openCreator(parts: Parts, initial: Character, onPlay: (c: Charac
     then();
   };
   // Captura: roda antes do stopPropagation do campo de nome, senão Esc no campo não cancelaria.
-  const onKey = (e: KeyboardEvent) => { if (onCancel && e.key === 'Escape' && el('credits').hidden) finish(onCancel); };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    if (!el('credits').hidden) el('credits').hidden = true;
+    else if (onCancel) finish(onCancel);
+  };
   el('creator-play').onclick = () => finish(() => onPlay({ name: cleanName(name.value), look }));
-  if (onCancel) document.addEventListener('keydown', onKey, true);
+  document.addEventListener('keydown', onKey, true);
   name.value = initial.name;
   box.hidden = false;
   void redraw();
