@@ -1,0 +1,21 @@
+{
+  "name": "biogame",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build --base ./",
+    "test": "node --test \"src/**/*.test.ts\" \"tools/**/*.test.ts\"",
+    "vendor": "node tools/vendor.ts",
+    "tiles": "node tools/tilegen.ts",
+    "maps": "node tools/maps.ts"
+  },
+  "dependencies": {
+    "phaser": "4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}

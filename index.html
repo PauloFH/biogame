@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biogame · UFRN</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div id="game"></div>
+  <div id="ui">
+    <div id="banner" class="gba" hidden></div>
+    <div id="dialog" class="gba" hidden>
+      <div id="dialog-label"></div>
+      <div id="dialog-text"></div>
+      <span id="dialog-next">▼</span>
+    </div>
+    <div id="prompt" hidden>Z</div>
+    <div id="tag" hidden></div>
+    <div id="balloon" hidden></div>
+    <form id="say" hidden><input id="say-input" maxlength="60" placeholder="Fale algo e aperte Enter" autocomplete="off"></form>
+    <aside id="panel" class="gba" hidden>
+      <header>
+        <a id="panel-open" target="_blank" rel="noopener">abrir em nova aba ↗</a>
+        <button id="panel-close" type="button">Esc ✕</button>
+      </header>
+      <iframe id="panel-frame" title="Site" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    </aside>
+    <section id="creator" class="gba" hidden>
+      <h1>Biogame · UFRN</h1>
+      <canvas id="creator-preview" width="16" height="32"></canvas>
+      <label>Nome <input id="creator-name" maxlength="16" autocomplete="off"></label>
+      <div class="row" data-part="body"><button type="button" data-dir="-1">◀</button><span></span><button type="button" data-dir="1">▶</button></div>
+      <div class="row" data-part="eyes"><button type="button" data-dir="-1">◀</button><span></span><button type="button" data-dir="1">▶</button></div>
+      <div class="row" data-part="outfit"><button type="button" data-dir="-1">◀</button><span></span><button type="button" data-dir="1">▶</button></div>
+      <div class="row" data-part="hair"><button type="button" data-dir="-1">◀</button><span></span><button type="button" data-dir="1">▶</button></div>
+      <div class="row" data-part="acc"><button type="button" data-dir="-1">◀</button><span></span><button type="button" data-dir="1">▶</button></div>
+      <button id="creator-play" type="button">Jogar ▶</button>
+      <button id="creator-credits" type="button">Créditos</button>
+    </section>
+    <section id="credits" class="gba" hidden>
+      <h2>Créditos</h2>
+      <ul>
+        <li>Cenários e personagem: LimeZu (Modern Interiors, Modern Office) · limezu.itch.io</li>
+        <li>NPCs: PixelSerial (RPG Top-Down Character Pack) · pixelserial.itch.io</li>
+        <li>Fonte: Pixelify Sans (SIL Open Font License)</li>
+        <li>Equipamentos de laboratório, sons e código: equipe Biogame</li>
+      </ul>
+      <button id="credits-close" type="button">Voltar</button>
+    </section>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

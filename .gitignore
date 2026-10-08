@@ -1,0 +1,10 @@
+# assets comprados: a licença proíbe redistribuir (gerados por npm run vendor)
+vendor/
+public/tilesets/limezu-*
+public/sprites/
+# ferramentas locais
+.superpowers/
+.playwright-mcp/
+.omc/
+node_modules/
+dist/
