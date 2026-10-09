@@ -1,4 +1,4 @@
-import { encodePng } from './png.ts';
+import { encodePng, type RgbaImage } from './png.ts';
 
 const parse = (hex: string): number[] => {
   const h = hex.replace('#', '');
@@ -38,6 +38,15 @@ export class Pix {
     for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++)
       if (!filled(x, y) && (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1))) edge.push([x, y]);
     for (const [x, y] of edge) this.px(x, y, hex);
+  }
+
+  /** Copia um retângulo de uma imagem (sem misturar alpha). */
+  blit(src: RgbaImage, sx: number, sy: number, w: number, h: number, dx: number, dy: number): void {
+    for (let j = 0; j < h; j++) {
+      if (sy + j >= src.height || dy + j >= this.h) break;
+      const from = ((sy + j) * src.width + sx) * 4;
+      this.data.set(src.data.subarray(from, from + Math.min(w, src.width - sx, this.w - dx) * 4), ((dy + j) * this.w + dx) * 4);
+    }
   }
 
   png(): Buffer {
