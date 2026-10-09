@@ -35,6 +35,11 @@ export function entryPoint(areas: Area[], name: string): { x: number; y: number 
   return e ? { x: e.rect.x + e.rect.w / 2, y: e.rect.y + e.rect.h / 2 } : null;
 }
 
+/** Objetos das camadas de áreas: "areas" (feita à mão no Tiled) e "osm-areas" (gerada pelo tools/osm.ts). */
+export function areaObjects(layers: { type: string; name: string; objects?: TiledObject[] }[]): TiledObject[] {
+  return layers.filter(l => l.type === 'objectgroup' && (l.name === 'areas' || l.name === 'osm-areas')).flatMap(l => l.objects ?? []);
+}
+
 export function parseAreas(objects: TiledObject[]): { areas: Area[]; warnings: string[] } {
   const areas: Area[] = [], warnings: string[] = [];
   for (const o of objects) {

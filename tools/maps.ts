@@ -1,8 +1,14 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cbLink } from './campus.ts';
+import { rasterize } from './grid.ts';
 import { LAB, LAB_COLS, LAB_ROWS, LAB_SOLID } from './lab-tiles.ts';
+import { loadCampus } from './osm.ts';
 import { areaLayer, prop, tiledMap, tileLayer, tileset, type AreaSpec, type Sheet } from './tiled.ts';
 
 export type MapSpec = { name: string; title: string; base: string[]; items: string[]; areas: AreaSpec[] };
+const campus = loadCampus();
+/** Onde a porta do corredor leva no campus (setor do CB, entrada "cb"). */
+const CB_LINK = cbLink(rasterize(campus), campus);
 
 const FLOORS: Sheet = { firstgid: 1, name: 'limezu-floors', columns: 15, rows: 40 };
 const WALLS: Sheet = { firstgid: 601, name: 'limezu-walls', columns: 32, rows: 40 };
@@ -116,8 +122,8 @@ export const CORRIDOR_MAP: MapSpec = {
     '#WWWWWWWW..WWWWWWWW#',
     '#WWWWWWWW..WWWWWWWW#',
     row('.', 20),
-    row('.', 20),
-    row('.', 20),
+    '#' + '.'.repeat(19),
+    '#' + '.'.repeat(19),
     row('.', 20),
     row('.', 20),
     '#'.repeat(20),
@@ -132,7 +138,8 @@ export const CORRIDOR_MAP: MapSpec = {
     { type: 'entry', name: 'default', col: 9, row: 5, w: 2 },
     { type: 'entry', name: 'porta-lab', col: 9, row: 3, w: 2 },
     { type: 'door', name: 'voltar', col: 9, row: 0, w: 2, props: { map: 'cb-lab', entry: 'porta-corredor' } },
-    { type: 'sign', name: 'saida', col: 17, row: 4, props: { text: 'Saída para o campus.\n---\nEm breve: o Campus Central inteiro!' } },
+    { type: 'entry', name: 'porta-campus', col: 17, row: 4 },
+    { type: 'door', name: 'campus', col: 19, row: 4, h: 2, props: { map: CB_LINK.map, entry: CB_LINK.entry } },
     { type: 'sound', name: 'zumbido', col: 0, row: 0, w: 20, h: 9, props: { src: 'audio/lab-hum.wav', volume: 0.1 } },
   ],
 };

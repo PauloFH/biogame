@@ -10,6 +10,7 @@
     "vendor": "node tools/vendor.ts",
     "tiles": "node tools/tilegen.ts",
     "maps": "node tools/maps.ts",
+    "osm": "node tools/osm.ts",
     "osm:fetch": "node tools/osm-data.ts"
   },
   "dependencies": {

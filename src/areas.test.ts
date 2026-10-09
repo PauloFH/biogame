@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { contains, entryPoint, near, paginate, parseAreas, type TiledObject } from './areas.ts';
+import { areaObjects, contains, entryPoint, near, paginate, parseAreas, type TiledObject } from './areas.ts';
 
 const obj = (type: string, name: string, props: Record<string, unknown> = {}, x = 0, y = 0): TiledObject => ({
   type, name, x, y, width: 16, height: 16,
@@ -91,4 +91,14 @@ test('contains is half-open and near expands by pad', () => {
 test('paginate splits on lines with only ---, trims and drops empty pages', () => {
   assert.deepEqual(paginate('a\n---\n\n---\n  b  '), ['a', 'b']);
   assert.deepEqual(paginate('sem separador'), ['sem separador']);
+});
+
+test('areaObjects joins the hand-made "areas" layer and the generated "osm-areas" layer, ignoring the rest', () => {
+  const layers = [
+    { type: 'objectgroup', name: 'osm-areas', objects: [obj('entry', 'default')] },
+    { type: 'tilelayer', name: 'areas' },
+    { type: 'objectgroup', name: 'notas', objects: [obj('sign', 'rascunho')] },
+    { type: 'objectgroup', name: 'areas', objects: [obj('sign', 'placa')] },
+  ];
+  assert.deepEqual(areaObjects(layers).map(o => o.name), ['default', 'placa']);
 });

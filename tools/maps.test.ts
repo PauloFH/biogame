@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { buildMap, LAB_MAP, MAPS } from './maps.ts';
 import type { MapSpec } from './maps.ts';
-import { contains, parseAreas } from '../src/areas.ts';
+import { areaObjects, contains, parseAreas } from '../src/areas.ts';
 import type { Area, TiledObject } from '../src/areas.ts';
 
 type Built = ReturnType<typeof buildMap>;
 /** Só o que o lint lê de um .tmj publicado. `name` é o nome do arquivo sem `.tmj`. */
-type Shipped = { name: string; layers: { name: string; objects?: TiledObject[] }[] };
+type Shipped = { name: string; layers: { type: string; name: string; objects?: TiledObject[] }[] };
 const tileLayer = (m: Built, name: string) => m.layers.find(l => l.name === name) as { data: number[] };
 const built = MAPS.map(spec => ({ spec, map: buildMap(spec) }));
 
@@ -21,9 +21,8 @@ function shippedMaps(): Shipped[] {
   }));
 }
 const shippedAreas = (m: Shipped) => {
-  const layer = m.layers.find(l => l.name === 'areas');
-  assert.ok(layer?.objects, `${m.name}: sem camada areas`);
-  return parseAreas(layer.objects);
+  assert.ok(m.layers.some(l => l.type === 'objectgroup' && (l.name === 'areas' || l.name === 'osm-areas')), `${m.name}: sem camada de áreas`);
+  return parseAreas(areaObjects(m.layers));
 };
 
 test('every tile layer has width × height cells', () => {
