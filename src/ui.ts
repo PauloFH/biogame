@@ -143,3 +143,18 @@ export function openCreator(parts: Parts, initial: Character, onPlay: (c: Charac
   box.hidden = false;
   void redraw();
 }
+
+/** Minimapa do setor (canto superior direito); `null` esconde. */
+export function showMinimap(src: string | null, label: string): void {
+  el('minimap').hidden = !src;
+  if (!src) return;
+  el<HTMLImageElement>('minimap-img').src = src;
+  el('minimap-label').textContent = label;
+}
+
+/** Ponto do jogador no minimapa, em frações (0..1) da largura e da altura do mapa. */
+export function moveMinimapDot(u: number, v: number): void {
+  const dot = el('minimap-dot');
+  dot.style.left = `${Math.max(0, Math.min(1, u)) * 100}%`;
+  dot.style.top = `${Math.max(0, Math.min(1, v)) * 100}%`;
+}

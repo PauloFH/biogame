@@ -17,6 +17,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1f2b; }
 #banner { position: absolute; top: 16px; left: 16px; padding: 8px 18px; font-size: 22px; animation: slide 3s ease forwards; }
 @keyframes slide { 0% { transform: translateY(-140%); } 10%, 85% { transform: none; } 100% { transform: translateY(-140%); } }
 
+#minimap { position: absolute; top: 16px; right: 16px; padding: 8px; font-size: 16px; text-align: center; }
+#minimap-map { position: relative; width: 160px; line-height: 0; }
+#minimap-img { width: 100%; image-rendering: pixelated; border-radius: 6px; }
+#minimap-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #e0303a; border: 2px solid #fff; }
+#minimap-label { margin-top: 6px; max-width: 160px; }
 #prompt, #tag, #balloon { position: absolute; transform: translate(-50%, -100%); white-space: nowrap; }
 #prompt { font-size: 18px; padding: 2px 8px; background: #fff; border: 3px solid var(--frame); border-radius: 6px; animation: bob .8s steps(2) infinite; }
 #tag { font-size: 16px; padding: 1px 8px; color: #fff; background: rgba(20, 24, 40, .75); border-radius: 8px; }

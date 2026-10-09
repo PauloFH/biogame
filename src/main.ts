@@ -5,7 +5,6 @@ import { defaultCharacter, layerUrls, loadSavedRaw, parseSaved, saveCharacter, t
 import { composeLayers } from './compose.ts';
 import { initUi, openCreator } from './ui.ts';
 
-const TILESETS = ['limezu-floors', 'limezu-walls', 'ufrn-lab'];
 const START: WorldData = { map: 'cb-lab', entry: 'default' };
 
 class Boot extends Phaser.Scene {
@@ -14,7 +13,6 @@ class Boot extends Phaser.Scene {
   }
 
   preload(): void {
-    for (const t of TILESETS) this.load.image(t, `tilesets/${t}.png`);
     for (const n of this.registry.get('npcs') as string[]) this.load.spritesheet(`npc:${n}`, `sprites/npc/${n}.png`, { frameWidth: 32, frameHeight: 32 });
   }
 

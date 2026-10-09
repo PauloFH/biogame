@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { contains, entryPoint, near, parseAreas, type Area, type TiledObject } from './areas.ts';
+import { areaObjects, contains, entryPoint, near, parseAreas, type Area, type TiledObject } from './areas.ts';
 import { dirFromVelocity, limezuFrames, pixelserialFrames, type Dir } from './anims.ts';
 import { layerUrls, saveCharacter, type Character, type Parts } from './character.ts';
 import { composeLayers } from './compose.ts';
@@ -10,6 +10,7 @@ const SPEED = 80, RUN = 150, ZOOM = 3, TALK_PAD = 16, FEET = 12;
 const DIRS: Dir[] = ['right', 'up', 'left', 'down'];
 type Point = { x: number; y: number };
 export type WorldData = { map: string; entry: string; pos?: Point; prev?: { map: string; entry: string } };
+type RawMap = { tilesets: { name: string }[]; layers: { type: string; name: string; objects?: TiledObject[] }[] };
 type Keys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'run' | 'e' | 'z' | 'say' | 'esc' | 'mute' | 'edit', Phaser.Input.Keyboard.Key>;
 
 /** Lê uma propriedade do Tiled, venha como array [{name, value}] ou como objeto. */
@@ -31,6 +32,8 @@ export class World extends Phaser.Scene {
   private leaving = false;
   private busy = false;
   private balloon = { text: '', until: 0 };
+  private ready = false;
+  private mapSize = { w: 1, h: 1 };
 
   constructor() {
     super('world');
@@ -48,6 +51,7 @@ export class World extends Phaser.Scene {
     this.leaving = false;
     this.busy = false;
     this.balloon = { text: '', until: 0 };
+    this.ready = false;
   }
 
   preload(): void {
@@ -58,7 +62,21 @@ export class World extends Phaser.Scene {
   create(): void {
     const key = `map:${this.here.map}`;
     if (!this.cache.tilemap.exists(key)) return this.fail(`Mapa "${this.here.map}" não encontrado`);
+    // Tilesets carregados sob demanda pelo nome (tilesets/<nome>.png): mapa novo do Tiled não precisa de código.
+    const raw = this.cache.tilemap.get(key).data as RawMap;
+    const missing = raw.tilesets.map(t => t.name).filter(n => !this.textures.exists(n));
+    if (!missing.length) return this.build(key, raw);
+    missing.forEach(n => this.load.image(n, `tilesets/${n}.png`));
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      missing.filter(n => !this.textures.exists(n)).forEach(n => console.warn(`[areas] tileset "${n}" não encontrado em tilesets/${n}.png`));
+      this.build(key, raw);
+    });
+    this.load.start();
+  }
+
+  private build(key: string, raw: RawMap): void {
     const map = this.make.tilemap({ key });
+    this.mapSize = { w: map.widthInPixels, h: map.heightInPixels };
     const tilesets = map.tilesets.map(t => map.addTilesetImage(t.name, t.name)).filter(t => t !== null);
     const solid = map.layers.map(l => {
       const layer = map.createLayer(l.name, tilesets) as Phaser.Tilemaps.TilemapLayer;
@@ -66,8 +84,7 @@ export class World extends Phaser.Scene {
     });
 
     // O Phaser 4.2.1 descarta o campo `class` dos objetos; lê-se o JSON cru (cache: { format, data }).
-    const raw = this.cache.tilemap.get(key).data as { layers: { type: string; name: string; objects?: TiledObject[] }[] };
-    const parsed = parseAreas(raw.layers.find(l => l.type === 'objectgroup' && l.name === 'areas')?.objects ?? []);
+    const parsed = parseAreas(areaObjects(raw.layers));
     parsed.warnings.forEach(w => console.warn(w));
     this.areas = parsed.areas;
 
@@ -98,17 +115,21 @@ export class World extends Phaser.Scene {
     const title = String(prop(map.properties, 'name') ?? '').trim();
     if (!title) console.warn(`[areas] mapa "${this.here.map}" sem propriedade "name"`);
     ui.showBanner(title || this.here.map);
+    const minimap = String(prop(map.properties, 'minimap') ?? '');
+    ui.showMinimap(minimap || null, title || this.here.map);
+    this.ready = true;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, fit);
       this.sound.removeAll();
       ui.showDialog(null);
       ui.showPrompt(null);
       ui.closePanel();
+      ui.showMinimap(null, '');
     });
   }
 
   update(time: number): void {
-    if (this.leaving || this.busy) return;
+    if (this.leaving || this.busy || !this.ready) return;
     const k = this.keys, down = Phaser.Input.Keyboard.JustDown;
     const act = down(k.e) || down(k.z);
     if (down(k.mute)) this.sound.mute = !this.sound.mute;
@@ -155,7 +176,12 @@ export class World extends Phaser.Scene {
 
   private makePlayer(map: Phaser.Tilemaps.Tilemap): Phaser.Physics.Arcade.Sprite {
     const img = this.registry.get('playerImage') as HTMLImageElement;
-    const tex = `player-v${this.registry.get('playerVersion') as number}`;
+    const version = this.registry.get('playerVersion') as number, tex = `player-v${version}`, old = `player-v${version - 1}`;
+    // cada edição de personagem gera uma textura nova (~2,4 MB); a anterior já não tem sprite usando
+    if (this.textures.exists(old)) {
+      for (const d of DIRS) for (const a of ['idle', 'walk']) this.anims.remove(`${old}-${a}-${d}`);
+      this.textures.remove(old);
+    }
     if (!this.textures.exists(tex)) this.textures.addSpriteSheet(tex, img, { frameWidth: 16, frameHeight: 32 });
     const cols = Math.floor(img.width / 16);
     for (const d of DIRS) {
@@ -217,6 +243,7 @@ export class World extends Phaser.Scene {
   }
 
   private go(next: { map: string; entry: string }): void {
+    if (this.leaving) return; // duas portas no mesmo quadro (ex.: canto de setor) disparam uma vez só
     this.leaving = true;
     this.player.setVelocity(0, 0);
     this.cameras.main.fadeOut(200);
@@ -284,6 +311,7 @@ export class World extends Phaser.Scene {
   private overlays(time: number): void {
     const head = this.toScreen(this.player.x, this.player.y - 18);
     ui.showTag((this.registry.get('character') as Character).name, head);
+    ui.moveMinimapDot(this.player.x / this.mapSize.w, (this.player.y + FEET) / this.mapSize.h);
     ui.showBalloon(time < this.balloon.until ? this.balloon.text : null, { x: head.x, y: head.y - 26 });
   }
 
