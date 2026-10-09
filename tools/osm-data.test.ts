@@ -41,8 +41,9 @@ test('trim joins the outer ways into one closed ring and projects to metres with
   const [x0, y0, x1, y1] = d.bbox;
   assert.ok(x1 - x0 > 1000 && x1 - x0 < 1200, `largura ${x1 - x0}`);
   assert.ok(y1 - y0 > 1000 && y1 - y0 < 1200, `altura ${y1 - y0}`);
-  const north = d.boundary[0].find(p => p[1] === y0), south = d.boundary[0].find(p => p[1] === y1);
-  assert.ok(north && south);
+  assert.equal(toMeters(d.origin, -35.2, -5.83)[1], y0, 'borda norte (lat -5.83) = menor y');
+  assert.equal(toMeters(d.origin, -35.2, -5.84)[1], y1, 'borda sul (lat -5.84) = maior y');
+  assert.ok(y0 < y1);
 });
 
 test('trim fails clearly when the relation is missing', () => {

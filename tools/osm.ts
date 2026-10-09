@@ -7,9 +7,13 @@ import { Pix } from './pix.ts';
 
 export const loadCampus = (): CampusData => JSON.parse(readFileSync(new URL('./data/campus.json', import.meta.url), 'utf8'));
 /** Pontos de interesse escritos à mão (lat/lon do Google Maps/OSM), convertidos para metros do campus. */
-export function loadPontos(d: CampusData): Ponto[] {
-  const raw = JSON.parse(readFileSync(new URL('./data/pontos.json', import.meta.url), 'utf8')) as { name: string; lat: number; lon: number; text: string }[];
-  return raw.map(p => { const [x, y] = toMeters(d.origin, p.lon, p.lat); return { name: p.name, x, y, text: p.text }; });
+export const loadPontos = (d: CampusData): Ponto[] => pontosOf(d, JSON.parse(readFileSync(new URL('./data/pontos.json', import.meta.url), 'utf8')));
+export function pontosOf(d: CampusData, raw: { name: string; lat: number; lon: number; text: string }[]): Ponto[] {
+  return raw.map(p => {
+    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) throw new Error(`ponto "${p.name}" sem lat/lon válidos em tools/data/pontos.json (lat: ${p.lat}, lon: ${p.lon})`);
+    const [x, y] = toMeters(d.origin, p.lon, p.lat);
+    return { name: p.name, x, y, text: p.text };
+  });
 }
 
 function main(): void {

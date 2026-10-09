@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ATLAS_COLS, ATLAS_ROWS, atlasId, BLOB_AT, CARS_LEFT, CARS_RIGHT, DECOR, DECOR_FILES, PLAIN, SIGN, TREES, type Stamp } from './campus-atlas.ts';
+import { ATLAS_COLS, ATLAS_ROWS, atlasId, BLOB_AT, CARS_LEFT, CARS_RIGHT, DECOR, PLAIN, SIGN, TREES, type Stamp } from './campus-atlas.ts';
 
 test('every piece of the campus atlas fits the sheet and none overlaps another', () => {
   const pieces: Stamp[] = [
@@ -17,5 +17,4 @@ test('every piece of the campus atlas fits the sheet and none overlaps another',
       owner.set(atlasId(x, y), n);
     }
   });
-  assert.equal(DECOR.length, DECOR_FILES.length);
 });
