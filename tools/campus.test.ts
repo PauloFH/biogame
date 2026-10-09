@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSector, CAMPUS_SOLID, cbLink, edgeLinks, mergeOsmLayers, sectors } from './campus.ts';
 import { atlasId, CARS_LEFT, CARS_RIGHT, DECOR, DECOR_TUFTS, SIGN, TREES } from './campus-atlas.ts';
-import { GRASS, rasterize } from './grid.ts';
+import { GRASS, rasterize, WATER } from './grid.ts';
 import type { CampusData } from './osm-data.ts';
 import { parseAreas, type TiledObject } from '../src/areas.ts';
 
@@ -142,12 +142,29 @@ test('a building sign whose front is the default entry slides down out of its re
   assert.deepEqual([sign.x / 16, sign.y / 16], [80, 82]);
 });
 
-test('a building sign whose front is an edge-link entry is skipped when the whole column is reserved', () => {
+test('a building sign whose front is an edge-link entry moves to the nearest free walkable cell within 7 cells when the whole column is reserved', () => {
   const d = { ...base, buildings: [{ n: 'Biblioteca', p: sq(312, 0, 318, 4) }] }; // frente em (157,2) = entrada de passagem; entradas em 2, 6 e 10 reservam a coluna
   const g = rasterize(d), all = sectors(g), map = buildSector(g, d, all[0], all);
   assert.ok(objectsOf(map).some(o => o.type === 'entry' && o.name === 'de-campus-1-0-0' && o.x / 16 === 157 && o.y / 16 === 2), 'cenário: entrada em (157,2)');
   assertSignsClear(map);
-  assert.ok(!objectsOf(map).some(o => o.name === 'placa-0'), 'sem célula livre na coluna: placa pulada');
+  const sign = objectsOf(map).find(o => o.name === 'placa-0');
+  assert.ok(sign, 'coluna toda reservada: a placa deve ir para uma célula livre por perto');
+  assert.ok(Math.hypot(sign.x / 16 - 157, sign.y / 16 - 2) <= 7, `placa longe demais da frente (${sign.x / 16},${sign.y / 16})`);
+});
+
+test('a building sign is skipped when no free walkable cell lies within 7 cells of its front', () => {
+  // grade 20×20: tudo é água, menos o bolsão (10,9) logo abaixo do prédio (a entrada default o ocupa) e, no 1º caso, uma faixa nas linhas 17-19, a 8 células da frente; no 2º nada andável sobra (near cai na própria frente)
+  for (const [far, lastWater] of [[GRASS, sq(0, 20, 40, 34)], [WATER, sq(0, 20, 40, 40)]] as const) {
+    const d: CampusData = {
+      ...base, bbox: [0, 0, 40, 40], boundary: [sq(0, 0, 40, 40)], buildings: [{ n: 'Alvo', p: sq(16, 8, 24, 18) }],
+      water: [sq(0, 0, 40, 18), sq(0, 18, 20, 20), sq(22, 18, 40, 20), lastWater],
+    };
+    const g = rasterize(d), all = sectors(g), map = buildSector(g, d, all[0], all);
+    assert.ok(objectsOf(map).some(o => o.name === 'default' && o.x / 16 === 10 && o.y / 16 === 9), 'cenário: a entrada default ocupa a frente (10,9)');
+    assert.equal(g.cls[17 * g.w + 10], far, 'cenário: faixa andável a 8 células da frente, ou nenhuma');
+    assertSignsClear(map);
+    assert.ok(!objectsOf(map).some(o => o.name === 'placa-0'), 'nada livre a até 7 células: placa pulada');
+  }
 });
 
 test('a point of interest on the default entry gets its sign on the nearest free walkable cell', () => {

@@ -129,9 +129,10 @@ export function buildSector(g: Grid, d: CampusData, s: Sector, all: Sector[], po
       if (below !== undefined) add({ type: 'entry', name: 'cb', col: i, row: below });
       if (walkable(cls(i + 2, j + 1))) add({ type: 'npc', name: 'vigilante', col: i + 2, row: j + 1, props: { name: 'Vigilante', sprite: 'policeman', text: 'Bem-vindo ao Campus Central da UFRN!\n---\nEsse é o Centro de Biociências. O laboratório de Biofísica fica lá dentro.' } });
     } else {
-      // a placa desce até 3 linhas para fugir de entradas e portas; sem célula andável e livre na coluna, fica sem placa
+      // a placa desce até 3 linhas para fugir de entradas e portas; sem célula andável e livre na coluna, vai para a mais próxima até 7 células (near cai em (i, j) quando não acha: confere de novo); sem nenhuma, fica sem placa
       const row = [0, 1, 2, 3].map(dy => j + dy).find(y => walkable(cls(i, y)) && free(i, y));
-      if (row !== undefined) add({ type: 'sign', name: `placa-${n}`, col: i, row, props: { text: b.n } });
+      const [ni, nj] = row !== undefined ? [i, row] : near(i, j);
+      if (Math.hypot(ni - i, nj - j) <= 7 && walkable(cls(ni, nj)) && free(ni, nj)) add({ type: 'sign', name: `placa-${n}`, col: ni, row: nj, props: { text: b.n } });
     }
   });
   for (const p of pontos) {
