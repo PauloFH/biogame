@@ -1,6 +1,7 @@
 # Biogame: mini WorkAdventure da UFRN (v1: campus e motor)
 
-> **Status:** aprovada em 2026-10-08 (ajustada depois com a referência visual e os arquivos comprados).
+> **Status:** aprovada em 2026-10-08 (ajustada depois com a referência visual e os arquivos comprados,
+> e de novo com o protótipo do campus aprovado pelo usuário no Plano 2).
 > Mockups da conversa (só locais): `.superpowers/brainstorm/*/content/telas-v{1,2,3}.html`.
 
 ## Objetivo
@@ -48,15 +49,17 @@ personagem · interiores além do laboratório (portas dos outros prédios mostr
 ```
 index.html            ← canvas do Phaser + camadas HTML (diálogo, painel, criador)
 public/
-  maps/               ← setor-*.tmj (campus em setores) + cb-lab.tmj
-  tilesets/ufrn/      ← tilesets gerados por nós (versionados)
-  tilesets/limezu/    ← extraídos de vendor/ (fora do git)
+  maps/               ← campus-<col>-<lin>.tmj + .mini.png (campus em setores), cb-lab.tmj, cb-corredor.tmj
+  tilesets/ufrn-*.png ← tilesets gerados por nós (versionados)
+  tilesets/limezu-*.png ← montados a partir de vendor/ (fora do git)
   audio/
 vendor/               ← zips/ comprados e x/ extraídos (fora do git)
 tools/
-  osm.ts              ← OSM → camadas base de cada setor (.tmj)
-  tilegen.ts          ← gera os PNGs de public/tilesets/ufrn/
-  vendor.ts           ← extrai/organiza os PNGs do LimeZu
+  osm-data.ts         ← baixa o OSM e grava o recorte em metros (tools/data/campus.json, versionado)
+  grid.ts, campus.ts  ← rasteriza em células de 2 m, corta em setores, monta as camadas osm-*
+  osm.ts              ← CLI: grava os setores (.tmj + minimapa) sem apagar o trabalho manual
+  tilegen.ts          ← gera os PNGs ufrn-* de public/tilesets/
+  vendor.ts           ← copia os PNGs do LimeZu e monta o atlas limezu-campus
 src/
   main.ts             ← configuração do Phaser
   World.ts            ← a única cena: carrega um mapa, jogador, colisão, câmera
@@ -78,23 +81,28 @@ O Phaser cria um objeto `Tile` por célula ao carregar o mapa, inclusive as vazi
 no código do 4.2.1). O campus num mapa só (~930×690 tiles por camada) daria milhões de
 objetos. Por isso:
 
-- **Escala inicial: ~2 m por tile**, calibrada no primeiro setor. Só as distâncias e as
-  pegadas dos prédios seguem o OSM; pessoas, carros e móveis mantêm o tamanho do sprite.
-- O campus é **dividido em mapas por setor** (Setor I a V, Reitoria/BCZM, IMD/RU…), cada um
-  com no máximo ~200×200 tiles (limite a medir no protótipo).
-- As bordas entre setores são áreas `door` com o `entry` correspondente no vizinho, então
-  atravessar é só um fade curto.
-- Camadas grandes e estáticas (chão) usam `TilemapGPULayer` (1 tileset por camada, desenhada
-  direto na placa de vídeo); camadas com colisão e detalhe usam `TilemapLayer` normal.
+- **Escala: 2 m por tile** (confirmada no protótipo: os carros de 4×3 tiles cabem nas vagas
+  reais). Só as distâncias e as pegadas dos prédios seguem o OSM; pessoas, carros e móveis
+  mantêm o tamanho do sprite. O campus inteiro dá uma grade de ~932×687 tiles.
+- A grade é **cortada em setores de 160×160 tiles**, nomeados pela posição
+  (`campus-<coluna>-<linha>`). Setores só com área fora do campus não viram mapa. Resultado:
+  22 setores. O banner de cada um mostra o maior prédio com nome dele (`Campus · CB`).
+- As bordas entre setores são pares de `door` + `entry`: um trecho de 4 tiles andável dos dois
+  lados vira uma porta na borda, com a entrada 2 tiles para dentro do vizinho, na mesma
+  altura. Atravessar é só um fade curto.
+- Medido no protótipo: 160×160 com `TilemapLayer` normal roda a 60 FPS com ~90 MB de heap.
+  `TilemapGPULayer` não é necessário.
 
 ### Pipeline do mapa
 
 ```
- OSM (API, contorno do campus) ──► tools/osm.ts ──► setor-*.tmj
-                                                     │  camadas osm-*: chão, vias,
-                                                     │  estacionamentos+carros, árvores,
-                                                     │  pegadas dos prédios (colisão), rótulos
-                                                     ▼
+ OSM (API 0.6) ──► osm-data.ts ──► campus.json ──► osm.ts ──► campus-*.tmj
+                                   pontos.json ──┘           │  camadas osm-*: chão, calçada,
+                                                              │  grama, terreno (estacionamento,
+                                                              │  telhado = pegada com colisão, água,
+                                                              │  mata), detalhes, objetos (carros,
+                                                              │  troncos, placas), copas, osm-areas
+                                                              ▼
                                     Tiled (à mão): fachadas sobre as pegadas,
                                     decoração, áreas (portas, placas, NPCs, sons)
                                                      │
@@ -103,12 +111,25 @@ objetos. Por isso:
 ```
 
 **Regra de ouro:** `tools/osm.ts` só escreve nas camadas com prefixo `osm-`. Regerar o OSM
-nunca apaga o trabalho manual feito no Tiled.
+nunca apaga o trabalho manual feito no Tiled: num setor que já existe, cada camada `osm-*` é
+trocada no lugar onde estava, e camadas, áreas, tilesets e propriedades manuais ficam. Um
+tileset manual com `firstgid` dentro da faixa do gerado dá erro, com a instrução de movê-lo.
+
+**Pontos de interesse** (`tools/data/pontos.json`): nome, lat/lon e texto. Cada um vira uma
+placa (`sign`) na célula andável mais próxima. Primeiro ponto: o Museu do Carro da ECT, na Rua
+da Tecnologia, ao sul do estacionamento da ECT. Prédios com nome no OSM também ganham uma placa
+com o nome em frente à fachada. O CB ganha a porta para o corredor e o vigilante.
 
 ### Arte
 
 - **LimeZu** é a base: chão, ruas, carros, vegetação, prédios modulares, interiores,
   personagens e interface.
+- **Campus:** o `vendor.ts` monta um atlas único (`limezu-campus.png`) com o que o gerador usa:
+  - autotiles "blob" de 47 peças do Modern Exteriors (layout Godot): gramado, calçada,
+    estacionamento, telhado, mata e água;
+  - carros 1–6, **sempre de lado**, em fileiras;
+  - 8 árvores de rua, tufos de grama e flores;
+  - a placa de informação que marca toda área `sign` do campus.
 - **PixelSerial RPG Top-Down Character Pack** (já comprado): NPCs prontos, só os de tema
   moderno (policial → vigilante, executivo → professor etc.), com caminhada em 4 direções.
   Não serve para o criador de personagem (não tem camadas).
@@ -133,14 +154,26 @@ aplica zoom 3×). Todo mapa tem a propriedade `name` (texto do banner do local).
 
 ### Camadas de tiles
 
-- Camadas `osm-*` são geradas, **não editar à mão** (serão sobrescritas).
-- As demais são manuais, desenhadas na ordem normal.
+- Camadas `osm-*` são geradas, **não editar à mão** (serão sobrescritas). Nos setores:
+  `osm-chao`, `osm-calcada`, `osm-grama`, `osm-terreno`, `osm-detalhes`, `osm-objetos`,
+  `osm-copas`.
+- As demais são manuais, desenhadas na ordem normal (camada nova pode ficar entre as `osm-*`;
+  a posição se mantém ao regerar).
 - Camada com propriedade `above: true` é desenhada **por cima** do jogador (copa de árvore,
   telhado, batente de porta).
 - **Colisão no tileset:** tile que bloqueia recebe `collides: true` uma vez no tileset.
-  As pegadas `osm-buildings` já colidem.
+  No campus, já colidem: telhados (as pegadas dos prédios), mata, água, carros, a linha do
+  tronco das árvores e o pé das placas.
+- **Tilesets:** o jogo carrega `tilesets/<nome>.png` pelo nome do tileset no `.tmj`, sob
+  demanda. Tileset novo no Tiled = PNG com o mesmo nome em `public/tilesets/`, sem código.
+  Faltando o PNG: aviso `[areas]` e o mapa abre sem aquela arte.
+- Propriedades do mapa: `name` (banner) e, nos setores, `minimap` (imagem do setor, 1 pixel
+  por tile, gerada pelo `tools/osm.ts`).
 
-### Camada de objetos `areas`
+### Camadas de objetos `areas` e `osm-areas`
+
+As áreas são lidas das duas camadas de objetos: `areas` (feita à mão) e `osm-areas` (gerada:
+entradas, passagens entre setores, placas dos prédios e dos pontos, porta do CB; não editar).
 
 | Class | Propriedades | Comportamento |
 |---|---|---|
@@ -202,8 +235,16 @@ aplica zoom 3×). Todo mapa tem a propriedade `name` (texto do banner do local).
 
 - **`areas.ts`:** `node --test` (Node 26 roda TS direto) com um JSON mínimo do Tiled: tipos
   válidos, propriedade faltando → aviso, Class desconhecida → aviso.
-- **`tools/osm.ts`:** um teste com um recorte OSM minúsculo (fixture) conferindo as camadas
-  geradas e que camadas manuais ficam intactas ao regerar.
+- **Gerador do campus:** testes com um recorte OSM minúsculo (fixture) e com campus sintéticos.
+  Eles conferem:
+  - o recorte e a projeção;
+  - a rasterização;
+  - os setores e as passagens;
+  - as camadas e áreas geradas;
+  - que carros e árvores não tapam passagens;
+  - que camadas manuais ficam intactas ao regerar.
+
+  O lint dos mapas roda sobre todos os `.tmj` publicados.
 - **No navegador** (Playwright): criar personagem, andar até a borda do setor, trocar de mapa,
   entrar no lab, abrir placa e NPC, tirar screenshot.
 
@@ -223,7 +264,8 @@ aplica zoom 3×). Todo mapa tem a propriedade `name` (texto do banner do local).
   modulares, terrenos de cidade. Do Interiors: sala de aula e biblioteca, auditório, hospital,
   museu (Museu de Morfologia), cozinha (RU).
 
-### Ainda a medir no protótipo
+### Medido no protótipo do campus (2026-10-08)
 
-- A escala dos carros contra a pegada real dos estacionamentos, para calibrar os ~2 m/tile.
-- O limite prático de tamanho de cada setor (memória/FPS).
+- Escala: 2 m/tile; os carros de lado (4×3 tiles) cabem nas vagas reais dos estacionamentos.
+- Setor de 160×160 tiles: 60 FPS, ~90 MB de heap, troca de setor sem engasgo. A geração dos
+  22 setores leva menos de 1 s.
