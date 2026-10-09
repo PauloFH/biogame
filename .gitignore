@@ -2,6 +2,9 @@
 vendor/
 public/tilesets/limezu-*
 public/sprites/
+# pacotes compactados na raiz (ex.: vendor.rar, zip dos sprites para a equipe)
+/*.rar
+/*.zip
 # referência visual só local (personagem estilo Pokémon e brasão da UFRN)
 docs/superpowers/specs/2026-10-08-biogame-referencia-visual.jpg
 # ferramentas locais
