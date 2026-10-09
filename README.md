@@ -33,6 +33,7 @@ Mapas são arquivos do [Tiled](https://www.mapeditor.org/); a convenção de cam
 
 ## Créditos e licenças
 
+- **Código:** licença MIT (`LICENSE`). Ela não cobre os dados do mapa, a fonte nem a arte comprada, que têm as licenças abaixo.
 - **Mapa do campus:** dados © colaboradores do OpenStreetMap, disponíveis sob a [Open Database License (ODbL)](https://www.openstreetmap.org/copyright). `tools/data/campus.json` e `public/maps/campus-*` são derivados desses dados e estão sob a mesma ODbL.
 - **Fonte:** Pixelify Sans, sob a SIL Open Font License (`src/fonts/OFL.txt`).
 - **Arte LimeZu e PixelSerial:** licença dos autores; não é redistribuída aqui.
