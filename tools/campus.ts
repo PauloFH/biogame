@@ -206,3 +206,40 @@ export function buildSector(g: Grid, d: CampusData, s: Sector, all: Sector[], po
 
 /** Cores do minimapa por classe (OUT, GRASS, PAVE, ROAD, PARK, BLD, WATER). */
 export const MINIMAP_COLORS = ['#2f4a2f', '#7fbf6a', '#d8d4c8', '#55555f', '#6f6f7a', '#e8dcc0', '#4aa3e0'];
+
+type MapJson = {
+  layers: { id: number; name: string; type: string; objects?: { id: number }[] }[];
+  tilesets: { name: string; firstgid: number; tilecount: number }[];
+  properties: { name: string }[]; nextlayerid: number; nextobjectid: number;
+};
+/**
+ * Regera só as camadas osm-* de um mapa que já existe, cada uma no lugar onde estava na pilha.
+ * Camadas, áreas, tilesets e propriedades feitos à mão no Tiled ficam intactos.
+ */
+export function mergeOsmLayers<M extends MapJson>(existing: M, generated: M): M {
+  const fresh = new Map(generated.layers.map(l => [l.name, l]));
+  const layers = existing.layers.flatMap(l => (l.name.startsWith('osm-') ? (fresh.has(l.name) ? [fresh.get(l.name)!] : []) : [l]));
+  for (const l of generated.layers) if (!layers.includes(l)) layers.push(l);
+  const manual = layers.filter(l => !l.name.startsWith('osm-'));
+  let lastId = Math.max(0, ...layers.map(l => l.id));
+  const taken = new Set(manual.map(l => l.id));
+  let lastObject = Math.max(0, ...manual.flatMap(l => (l.objects ?? []).map(o => o.id)));
+  const merged = layers.map(l => {
+    if (!l.name.startsWith('osm-')) return l;
+    const id = taken.has(l.id) ? ++lastId : l.id;
+    lastId = Math.max(lastId, id);
+    return { ...l, id, ...(l.objects ? { objects: l.objects.map(o => ({ ...o, id: ++lastObject })) } : {}) };
+  });
+  const ours = new Set(generated.tilesets.map(t => t.name));
+  const end = Math.max(...generated.tilesets.map(t => t.firstgid + t.tilecount));
+  const extra = existing.tilesets.filter(t => !ours.has(t.name));
+  for (const t of extra) if (t.firstgid < end) throw new Error(`tileset "${t.name}" (firstgid ${t.firstgid}) colide com o gerado (vai até ${end - 1}); mova-o no Tiled para firstgid ≥ ${end}`);
+  const props = new Set(generated.properties.map(p => p.name));
+  return {
+    ...existing, ...generated,
+    layers: merged, tilesets: [...generated.tilesets, ...extra],
+    properties: [...generated.properties, ...existing.properties.filter(p => !props.has(p.name))],
+    nextlayerid: 1 + Math.max(...merged.map(l => l.id)),
+    nextobjectid: 1 + Math.max(lastObject, ...merged.flatMap(l => (l.objects ?? []).map(o => o.id))),
+  };
+}

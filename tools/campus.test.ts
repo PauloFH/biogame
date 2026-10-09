@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSector, CAMPUS_SOLID, cbLink, edgeLinks, sectors } from './campus.ts';
+import { buildSector, CAMPUS_SOLID, cbLink, edgeLinks, mergeOsmLayers, sectors } from './campus.ts';
 import { atlasId, CARS_LEFT, CARS_RIGHT, SIGN, TREES } from './campus-atlas.ts';
 import { rasterize } from './grid.ts';
 import type { CampusData } from './osm-data.ts';
@@ -116,4 +116,38 @@ test('a point of interest becomes a sign on the nearest walkable cell of its sec
   const tiles = (name: string) => (map.layers.find(l => l.name === name) as { data: number[] }).data;
   assert.equal(tiles('osm-objetos')[j * 160 + i], 1 + atlasId(SIGN.at[0], SIGN.at[1] + 1), 'pé da placa na célula da área');
   assert.equal(tiles('osm-copas')[(j - 1) * 160 + i], 1 + atlasId(SIGN.at[0], SIGN.at[1]), 'topo da placa por cima');
+});
+
+test('regenerating keeps manual layers, areas and tilesets, and only swaps the osm-* layers in place', () => {
+  const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
+  const old = structuredClone(fresh);
+  const manualLayer = { type: 'tilelayer', id: 20, name: 'fachadas', x: 0, y: 0, width: 160, height: 160, opacity: 1, visible: true, data: new Array(160 * 160).fill(1000) };
+  const manualAreas = { type: 'objectgroup', id: 21, name: 'areas', draworder: 'topdown', x: 0, y: 0, opacity: 1, visible: true, objects: [{ id: 5000, name: 'placa', type: 'sign', x: 0, y: 0, width: 16, height: 16, rotation: 0, visible: true, properties: [] }] };
+  old.layers.splice(4, 0, manualLayer as never);
+  old.layers.push(manualAreas as never);
+  old.tilesets.push({ ...old.tilesets[0], name: 'fachadas-ufrn', firstgid: 2000 });
+  (old.layers.find(l => l.name === 'osm-grama') as { data: number[] }).data.fill(7);
+  const merged = mergeOsmLayers(old, fresh);
+  assert.deepEqual(merged.layers.map(l => l.name), ['osm-chao', 'osm-calcada', 'osm-grama', 'osm-terreno', 'fachadas', 'osm-detalhes', 'osm-objetos', 'osm-copas', 'osm-areas', 'areas']);
+  assert.deepEqual((merged.layers.find(l => l.name === 'osm-grama') as { data: number[] }).data, (fresh.layers.find(l => l.name === 'osm-grama') as { data: number[] }).data);
+  assert.equal(merged.layers.find(l => l.name === 'fachadas'), manualLayer as never);
+  assert.ok(merged.tilesets.some(t => t.name === 'fachadas-ufrn'));
+  const ids = merged.layers.flatMap(l => ('objects' in l ? (l.objects as { id: number }[]).map(o => o.id) : []));
+  assert.equal(new Set(ids).size, ids.length, 'ids de objeto repetidos');
+  assert.ok(Math.min(...(merged.layers.find(l => l.name === 'osm-areas') as { objects: { id: number }[] }).objects.map(o => o.id)) > 5000);
+  assert.equal(merged.nextobjectid, Math.max(...ids) + 1);
+  assert.equal(new Set(merged.layers.map(l => l.id)).size, merged.layers.length, 'ids de camada repetidos');
+  const clash = structuredClone(old);
+  clash.tilesets[1].firstgid = 500;
+  assert.throws(() => mergeOsmLayers(clash, fresh), /colide/);
+});
+
+test('a manual layer whose id collides with a generated one: layer ids stay unique and nextlayerid passes them all', () => {
+  const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
+  const old = structuredClone(fresh);
+  old.layers.splice(4, 0, { type: 'tilelayer', id: 7, name: 'fachadas', x: 0, y: 0, width: 160, height: 160, opacity: 1, visible: true, data: new Array(160 * 160).fill(1000) } as never);
+  const merged = mergeOsmLayers(old, fresh);
+  const ids = merged.layers.map(l => l.id);
+  assert.equal(new Set(ids).size, ids.length, 'ids de camada repetidos');
+  assert.ok(ids.every(id => id < merged.nextlayerid), 'nextlayerid deve ser maior que todos os ids de camada');
 });
