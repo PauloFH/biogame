@@ -1,10 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { LAB, LAB_COLS, LAB_ROWS, LAB_SOLID } from './lab-tiles.ts';
+import { areaLayer, prop, tiledMap, tileLayer, tileset, type AreaSpec, type Sheet } from './tiled.ts';
 
-const T = 16;
-export type AreaSpec = { type: string; name: string; col: number; row: number; w?: number; h?: number; props?: Record<string, string | number> };
 export type MapSpec = { name: string; title: string; base: string[]; items: string[]; areas: AreaSpec[] };
-type Sheet = { firstgid: number; name: string; columns: number; rows: number };
 
 const FLOORS: Sheet = { firstgid: 1, name: 'limezu-floors', columns: 15, rows: 40 };
 const WALLS: Sheet = { firstgid: 601, name: 'limezu-walls', columns: 32, rows: 40 };
@@ -51,26 +49,10 @@ export function buildMap(spec: MapSpec) {
       items.push(it === '.' ? 0 : ufrn(ITEMS[it]));
     }
   }
-  const tileLayer = (id: number, name: string, data: number[]) => ({ type: 'tilelayer', id, name, x: 0, y: 0, width: w, height: h, opacity: 1, visible: true, data });
-  const tileset = (s: Sheet, solid: number[]) => ({
-    firstgid: s.firstgid, name: s.name, image: `../tilesets/${s.name}.png`, imagewidth: s.columns * T, imageheight: s.rows * T,
-    tilewidth: T, tileheight: T, columns: s.columns, tilecount: s.columns * s.rows, margin: 0, spacing: 0,
-    tiles: solid.map(id => ({ id, properties: [{ name: 'collides', type: 'bool', value: true }] })),
-  });
-  const objects = spec.areas.map((a, i) => ({
-    id: i + 1, name: a.name, type: a.type, x: a.col * T, y: a.row * T, width: (a.w ?? 1) * T, height: (a.h ?? 1) * T, rotation: 0, visible: true,
-    properties: Object.entries(a.props ?? {}).map(([name, value]) => ({ name, type: typeof value === 'number' ? 'float' : 'string', value })),
-  }));
-  return {
-    type: 'map', version: '1.10', tiledversion: '1.11.2', orientation: 'orthogonal', renderorder: 'right-down', infinite: false,
-    width: w, height: h, tilewidth: T, tileheight: T, nextlayerid: 6, nextobjectid: objects.length + 1,
-    properties: [{ name: 'name', type: 'string', value: spec.title }],
-    tilesets: [tileset(FLOORS, []), tileset(WALLS, WALL_SOLID), tileset(UFRN, LAB_SOLID)],
-    layers: [
-      tileLayer(1, 'floor', floor), tileLayer(2, 'walls', walls), tileLayer(3, 'furniture', furniture), tileLayer(4, 'items', items),
-      { type: 'objectgroup', id: 5, name: 'areas', draworder: 'topdown', x: 0, y: 0, opacity: 1, visible: true, objects },
-    ],
-  };
+  return tiledMap(w, h, [prop('name', spec.title)], [tileset(FLOORS, []), tileset(WALLS, WALL_SOLID), tileset(UFRN, LAB_SOLID)], [
+    tileLayer(1, 'floor', w, h, floor), tileLayer(2, 'walls', w, h, walls), tileLayer(3, 'furniture', w, h, furniture), tileLayer(4, 'items', w, h, items),
+    areaLayer(5, spec.areas),
+  ]);
 }
 
 const row = (fill: string, w: number, edge = '#') => edge + fill.repeat(w - 2) + edge;
