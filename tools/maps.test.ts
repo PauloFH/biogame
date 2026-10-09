@@ -8,7 +8,11 @@ import type { Area, TiledObject } from '../src/areas.ts';
 
 type Built = ReturnType<typeof buildMap>;
 /** Só o que o lint lê de um .tmj publicado. `name` é o nome do arquivo sem `.tmj`. */
-type Shipped = { name: string; layers: { type: string; name: string; objects?: TiledObject[] }[] };
+type Shipped = {
+  name: string; width: number;
+  tilesets: { firstgid: number; tiles?: { id: number; properties?: { name: string; value: unknown }[] }[] }[];
+  layers: { type: string; name: string; data?: number[]; objects?: TiledObject[] }[];
+};
 const tileLayer = (m: Built, name: string) => m.layers.find(l => l.name === name) as { data: number[] };
 const built = MAPS.map(spec => ({ spec, map: buildMap(spec) }));
 
@@ -17,7 +21,7 @@ const MAPS_DIR = new URL('../public/maps/', import.meta.url);
 function shippedMaps(): Shipped[] {
   return readdirSync(MAPS_DIR).filter(f => f.endsWith('.tmj')).sort().map(f => ({
     name: f.slice(0, -'.tmj'.length),
-    layers: (JSON.parse(readFileSync(new URL(f, MAPS_DIR), 'utf8')) as { layers: Shipped['layers'] }).layers,
+    ...(JSON.parse(readFileSync(new URL(f, MAPS_DIR), 'utf8')) as Omit<Shipped, 'name'>),
   }));
 }
 const shippedAreas = (m: Shipped) => {
@@ -66,6 +70,22 @@ test('no entry sits inside a door (the player would bounce between maps)', () =>
       for (const d of areas.filter(a => a.kind === 'door')) assert.equal(contains(d.rect, c.x, c.y), false, `${m.name}: ${e.name} dentro de ${d.name}`);
     }
   }
+});
+
+test('no entry sits on a colliding tile in any tile layer (the player would spawn stuck)', () => {
+  const bad: string[] = [];
+  for (const m of shippedMaps()) {
+    // gid = firstgid + id local; tiles com `collides: true`, como o jogo os lê
+    const solid = new Set(m.tilesets.flatMap(t => (t.tiles ?? []).filter(x => x.properties?.some(p => p.name === 'collides' && p.value === true)).map(x => t.firstgid + x.id)));
+    const layers = m.layers.filter(l => l.type === 'tilelayer' && l.data);
+    for (const e of shippedAreas(m).areas.filter(a => a.kind === 'entry')) {
+      for (let y = Math.floor(e.rect.y / 16); y < Math.ceil((e.rect.y + e.rect.h) / 16); y++) for (let x = Math.floor(e.rect.x / 16); x < Math.ceil((e.rect.x + e.rect.w) / 16); x++) {
+        const hit = layers.find(l => solid.has(l.data![y * m.width + x] & 0x1fffffff));
+        if (hit) bad.push(`${m.name}: entry "${e.name}" em (${x},${y}) cai num tile sólido da camada ${hit.name}`);
+      }
+    }
+  }
+  assert.ok(bad.length === 0, `jogador nasceria preso:\n${bad.join('\n')}`);
 });
 
 test('every door points to a built map and an entry that exists there', () => {

@@ -118,6 +118,50 @@ test('a point of interest becomes a sign on the nearest walkable cell of its sec
   assert.equal(tiles('osm-copas')[(j - 1) * 160 + i], 1 + atlasId(SIGN.at[0], SIGN.at[1]), 'topo da placa por cima');
 });
 
+type Obj = TiledObject & { x: number; y: number; width: number; height: number };
+const objectsOf = (map: ReturnType<typeof buildSector>) => (map.layers.find(l => l.type === 'objectgroup') as unknown as { objects: Obj[] }).objects;
+/** Nenhuma placa pode ter o pé (célula da área) numa porta/entrada nem na reserva dela (1 em volta, 2 acima, 1 abaixo); e nada fica sobre a célula da porta/entrada. */
+function assertSignsClear(map: ReturnType<typeof buildSector>) {
+  const objects = objectsOf(map), signs = objects.filter(o => o.type === 'sign'), links = objects.filter(o => o.type === 'door' || o.type === 'entry');
+  const objetos = (map.layers.find(l => l.name === 'osm-objetos') as { data: number[] }).data;
+  for (const l of links) {
+    const [c, r, w, h] = [l.x / 16, l.y / 16, l.width / 16, l.height / 16];
+    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) assert.equal(objetos[y * map.width + x], 0, `pé de placa sobre ${l.type} "${l.name}" em (${x},${y})`);
+    for (const sg of signs) {
+      const [sc, sr] = [sg.x / 16, sg.y / 16];
+      assert.ok(!(sc >= c - 1 && sc <= c + w && sr >= r - 2 && sr <= r + h), `placa "${sg.name}" em (${sc},${sr}) dentro da reserva de ${l.type} "${l.name}" (${c},${r})`);
+    }
+  }
+}
+
+test('a building sign whose front is the default entry slides down out of its reservation', () => {
+  const d = { ...base, buildings: [{ n: 'Reitoria', p: sq(158, 140, 164, 160) }] }; // frente em (80,80) = entrada default
+  const g = rasterize(d), all = sectors(g), map = buildSector(g, d, all[0], all);
+  assertSignsClear(map);
+  const sign = objectsOf(map).find(o => o.name === 'placa-0')!;
+  assert.deepEqual([sign.x / 16, sign.y / 16], [80, 82]);
+});
+
+test('a building sign whose front is an edge-link entry is skipped when the whole column is reserved', () => {
+  const d = { ...base, buildings: [{ n: 'Biblioteca', p: sq(312, 0, 318, 4) }] }; // frente em (157,2) = entrada de passagem; entradas em 2, 6 e 10 reservam a coluna
+  const g = rasterize(d), all = sectors(g), map = buildSector(g, d, all[0], all);
+  assert.ok(objectsOf(map).some(o => o.type === 'entry' && o.name === 'de-campus-1-0-0' && o.x / 16 === 157 && o.y / 16 === 2), 'cenário: entrada em (157,2)');
+  assertSignsClear(map);
+  assert.ok(!objectsOf(map).some(o => o.name === 'placa-0'), 'sem célula livre na coluna: placa pulada');
+});
+
+test('a point of interest on the default entry gets its sign on the nearest free walkable cell', () => {
+  const g = rasterize(base), all = sectors(g), map = buildSector(g, base, all[0], all, [{ name: 'a', x: 161, y: 161, text: 'A' }]); // (161,161) m = célula (80,80)
+  assert.ok(objectsOf(map).some(o => o.name === 'ponto-a'));
+  assertSignsClear(map);
+});
+
+test('a point of interest on an edge-link entry gets its sign on the nearest free walkable cell', () => {
+  const g = rasterize(base), all = sectors(g), map = buildSector(g, base, all[0], all, [{ name: 'b', x: 315, y: 5, text: 'B' }]); // (315,5) m = célula (157,2)
+  assert.ok(objectsOf(map).some(o => o.name === 'ponto-b'));
+  assertSignsClear(map);
+});
+
 test('regenerating keeps manual layers, areas and tilesets, and only swaps the osm-* layers in place', () => {
   const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
   const old = structuredClone(fresh);

@@ -96,22 +96,23 @@ export function buildSector(g: Grid, d: CampusData, s: Sector, all: Sector[], po
   const free = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && !busy[j * W + i];
   const occupy = (i: number, j: number, w: number, h: number) => { for (let y = j; y < j + h; y++) for (let x = i; x < i + w; x++) if (x >= 0 && y >= 0 && x < W && y < H) busy[y * W + x] = 1; };
 
-  // áreas primeiro: cada uma reserva a própria célula, 1 tile em volta e 2 acima, para árvores e carros não taparem portas, entradas e placas
+  // áreas primeiro: cada uma reserva, ao ser criada, a própria célula, 1 tile em volta e 2 acima, para árvores, carros e placas posteriores não taparem portas e entradas
   const areas: AreaSpec[] = [];
-  /** Célula andável do setor mais próxima (distância euclidiana) de (i, j). */
+  const add = (a: AreaSpec) => { areas.push(a); occupy(a.col - 1, a.row - 2, (a.w ?? 1) + 2, (a.h ?? 1) + 3); };
+  /** Célula andável e livre (fora da reserva das áreas já criadas) do setor mais próxima (distância euclidiana) de (i, j). */
   const near = (i: number, j: number): [number, number] => {
     let best: [number, number] = [i, j], bestD = Infinity;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const dist = (x - i) ** 2 + (y - j) ** 2;
-      if (dist < bestD && walkable(cls(x, y))) { best = [x, y]; bestD = dist; }
+      if (dist < bestD && walkable(cls(x, y)) && free(x, y)) { best = [x, y]; bestD = dist; }
     }
     return best;
   };
-  const [ci, cj] = near(Math.floor(W / 2), Math.floor(H / 2));
-  areas.push({ type: 'entry', name: 'default', col: ci, row: cj });
+  const [ci, cj] = near(Math.floor(W / 2), Math.floor(H / 2)); // a primeira área: tudo está livre
+  add({ type: 'entry', name: 'default', col: ci, row: cj });
   for (const o of all) {
-    for (const l of edgeLinks(g, s, o)) areas.push(l.doorA, l.entryA);
-    for (const l of edgeLinks(g, o, s)) areas.push(l.doorB, l.entryB);
+    for (const l of edgeLinks(g, s, o)) { add(l.doorA); add(l.entryA); }
+    for (const l of edgeLinks(g, o, s)) { add(l.doorB); add(l.entryB); }
   }
   let largest = { n: '', size: 0 };
   d.buildings.forEach((b, n) => {
@@ -123,21 +124,22 @@ export function buildSector(g: Grid, d: CampusData, s: Sector, all: Sector[], po
     if (!f) return;
     const [i, j] = [f[0] - s.x0, f[1] - s.y0];
     if (b.n === CB_NAME) {
-      areas.push({ type: 'door', name: 'porta-cb', col: i, row: j, props: { map: 'cb-corredor', entry: 'porta-campus' } });
+      add({ type: 'door', name: 'porta-cb', col: i, row: j, props: { map: 'cb-corredor', entry: 'porta-campus' } });
       const below = [2, 3, 4, 5].map(dy => j + dy).find(y => walkable(cls(i, y)));
-      if (below !== undefined) areas.push({ type: 'entry', name: 'cb', col: i, row: below });
-      if (walkable(cls(i + 2, j + 1))) areas.push({ type: 'npc', name: 'vigilante', col: i + 2, row: j + 1, props: { name: 'Vigilante', sprite: 'policeman', text: 'Bem-vindo ao Campus Central da UFRN!\n---\nEsse é o Centro de Biociências. O laboratório de Biofísica fica lá dentro.' } });
+      if (below !== undefined) add({ type: 'entry', name: 'cb', col: i, row: below });
+      if (walkable(cls(i + 2, j + 1))) add({ type: 'npc', name: 'vigilante', col: i + 2, row: j + 1, props: { name: 'Vigilante', sprite: 'policeman', text: 'Bem-vindo ao Campus Central da UFRN!\n---\nEsse é o Centro de Biociências. O laboratório de Biofísica fica lá dentro.' } });
     } else {
-      areas.push({ type: 'sign', name: `placa-${n}`, col: i, row: j, props: { text: b.n } });
+      // a placa desce até 3 linhas para fugir de entradas e portas; sem célula andável e livre na coluna, fica sem placa
+      const row = [0, 1, 2, 3].map(dy => j + dy).find(y => walkable(cls(i, y)) && free(i, y));
+      if (row !== undefined) add({ type: 'sign', name: `placa-${n}`, col: i, row, props: { text: b.n } });
     }
   });
   for (const p of pontos) {
     const fi = Math.floor((p.x - g.x0) / g.mpt) - s.x0, fj = Math.floor((p.y - g.y0) / g.mpt) - s.y0;
     if (fi < 0 || fj < 0 || fi >= W || fj >= H) continue;
     const [i, j] = near(fi, fj);
-    areas.push({ type: 'sign', name: `ponto-${p.name}`, col: i, row: j, props: { text: p.text } });
+    add({ type: 'sign', name: `ponto-${p.name}`, col: i, row: j, props: { text: p.text } });
   }
-  for (const a of areas) occupy(a.col - 1, a.row - 2, (a.w ?? 1) + 2, (a.h ?? 1) + 3);
 
   const layer = () => new Array<number>(W * H).fill(0);
   const chao = layer(), calcada = layer(), grama = layer(), terreno = layer(), detalhes = layer(), objetos = layer(), copas = layer();
