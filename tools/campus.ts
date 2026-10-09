@@ -211,15 +211,17 @@ export function buildSector(g: Grid, d: CampusData, s: Sector, all: Sector[], po
 export const MINIMAP_COLORS = ['#2f4a2f', '#7fbf6a', '#d8d4c8', '#55555f', '#6f6f7a', '#e8dcc0', '#4aa3e0'];
 
 type MapJson = {
+  width: number; height: number;
   layers: { id: number; name: string; type: string; objects?: { id: number }[] }[];
   tilesets: { name: string; firstgid: number; tilecount: number }[];
-  properties: { name: string }[]; nextlayerid: number; nextobjectid: number;
+  properties?: { name: string }[]; nextlayerid: number; nextobjectid: number;
 };
 /**
  * Regera só as camadas osm-* de um mapa que já existe, cada uma no lugar onde estava na pilha.
- * Camadas, áreas, tilesets e propriedades feitos à mão no Tiled ficam intactos.
+ * Camadas, áreas, tilesets e propriedades feitos à mão no Tiled ficam intactos (numa propriedade de mesmo nome, vale a do arquivo existente).
  */
 export function mergeOsmLayers<M extends MapJson>(existing: M, generated: M): M {
+  if (existing.width !== generated.width || existing.height !== generated.height) throw new Error(`o mapa existente tem ${existing.width}×${existing.height} tiles e o setor gerado ${generated.width}×${generated.height}: o tamanho do setor mudou e as camadas feitas à mão ficariam desalinhadas; ajuste o mapa no Tiled ou apague o arquivo para gerar de novo`);
   const fresh = new Map(generated.layers.map(l => [l.name, l]));
   const layers = existing.layers.flatMap(l => (l.name.startsWith('osm-') ? (fresh.has(l.name) ? [fresh.get(l.name)!] : []) : [l]));
   for (const l of generated.layers) if (!layers.includes(l)) layers.push(l);
@@ -237,11 +239,11 @@ export function mergeOsmLayers<M extends MapJson>(existing: M, generated: M): M 
   const end = Math.max(...generated.tilesets.map(t => t.firstgid + t.tilecount));
   const extra = existing.tilesets.filter(t => !ours.has(t.name));
   for (const t of extra) if (t.firstgid < end) throw new Error(`tileset "${t.name}" (firstgid ${t.firstgid}) colide com o gerado (vai até ${end - 1}); mova-o no Tiled para firstgid ≥ ${end}`);
-  const props = new Set(generated.properties.map(p => p.name));
+  const props = new Set((existing.properties ?? []).map(p => p.name));
   return {
     ...existing, ...generated,
     layers: merged, tilesets: [...generated.tilesets, ...extra],
-    properties: [...generated.properties, ...existing.properties.filter(p => !props.has(p.name))],
+    properties: [...(existing.properties ?? []), ...(generated.properties ?? []).filter(p => !props.has(p.name))],
     nextlayerid: 1 + Math.max(...merged.map(l => l.id)),
     nextobjectid: 1 + Math.max(lastObject, ...merged.flatMap(l => (l.objects ?? []).map(o => o.id))),
   };

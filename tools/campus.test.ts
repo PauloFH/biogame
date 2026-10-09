@@ -186,6 +186,26 @@ test('regenerating keeps manual layers, areas and tilesets, and only swaps the o
   assert.throws(() => mergeOsmLayers(clash, fresh), /colide/);
 });
 
+test('regenerating keeps properties edited by hand and adds the new generated ones', () => {
+  const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
+  const old = structuredClone(fresh);
+  old.properties = [{ name: 'name', type: 'string', value: 'Reitoria (Tiled)' }, { name: 'clima', type: 'string', value: 'sol' }]; // renomeado à mão; `minimap` não existia
+  const merged = mergeOsmLayers(old, fresh);
+  assert.deepEqual(merged.properties.map(p => [p.name, p.value]), [['name', 'Reitoria (Tiled)'], ['clima', 'sol'], ['minimap', 'maps/campus-0-0.mini.png']]);
+});
+
+test('regenerating copes with an existing map that has no properties key (Tiled omits it when empty)', () => {
+  const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
+  const { properties: _, ...bare } = structuredClone(fresh);
+  assert.deepEqual(mergeOsmLayers(bare as typeof fresh, fresh).properties, fresh.properties);
+});
+
+test('regenerating refuses a map whose size differs from the sector', () => {
+  const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
+  assert.throws(() => mergeOsmLayers({ ...structuredClone(fresh), width: 100 }, fresh), /tamanho/);
+  assert.throws(() => mergeOsmLayers({ ...structuredClone(fresh), height: 100 }, fresh), /tamanho/);
+});
+
 test('a manual layer whose id collides with a generated one: layer ids stay unique and nextlayerid passes them all', () => {
   const g = rasterize(base), all = sectors(g), fresh = buildSector(g, base, all[0], all);
   const old = structuredClone(fresh);
