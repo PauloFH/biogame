@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSector, CAMPUS_SOLID, cbLink, edgeLinks, mergeOsmLayers, sectors } from './campus.ts';
-import { atlasId, CARS_LEFT, CARS_RIGHT, SIGN, TREES } from './campus-atlas.ts';
-import { rasterize } from './grid.ts';
+import { atlasId, CARS_LEFT, CARS_RIGHT, DECOR, DECOR_TUFTS, SIGN, TREES } from './campus-atlas.ts';
+import { GRASS, rasterize } from './grid.ts';
 import type { CampusData } from './osm-data.ts';
 import { parseAreas, type TiledObject } from '../src/areas.ts';
 
@@ -150,4 +150,17 @@ test('a manual layer whose id collides with a generated one: layer ids stay uniq
   const ids = merged.layers.map(l => l.id);
   assert.equal(new Set(ids).size, ids.length, 'ids de camada repetidos');
   assert.ok(ids.every(id => id < merged.nextlayerid), 'nextlayerid deve ser maior que todos os ids de camada');
+});
+
+test('scattered decor and trees follow their odds: 5% of the grass decorated, 1 in 4 of those a flower, every tree model used', () => {
+  const g = rasterize(base), all = sectors(g), s = all[0], map = buildSector(g, base, s, all);
+  const layer = (name: string) => (map.layers.find(l => l.name === name) as { data: number[] }).data;
+  let grass = 0;
+  for (let j = 0; j < s.h; j++) for (let i = 0; i < s.w; i++) if (g.cls[(s.y0 + j) * g.w + s.x0 + i] === GRASS) grass++;
+  const decorated = layer('osm-detalhes').filter(Boolean), flowers = new Set(DECOR.slice(DECOR_TUFTS).map(d => 1 + atlasId(d.at[0], d.at[1])));
+  assert.ok(decorated.length / grass > 0.04 && decorated.length / grass < 0.06, `enfeites em ${(100 * decorated.length / grass).toFixed(1)}% da grama, esperado ~5%`);
+  const flowerShare = decorated.filter(id => flowers.has(id)).length / decorated.length;
+  assert.ok(flowerShare > 0.2 && flowerShare < 0.3, `flores em ${(100 * flowerShare).toFixed(1)}% dos enfeites, esperado ~25%`);
+  const canopies = new Set(layer('osm-copas'));
+  for (const [n, t] of TREES.entries()) assert.ok(canopies.has(1 + atlasId(t.at[0], t.at[1])), `modelo de árvore ${n} nunca apareceu no setor`);
 });

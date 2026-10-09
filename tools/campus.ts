@@ -37,8 +37,9 @@ export function sectors(g: Grid): Sector[] {
 }
 
 const hash = (i: number, j: number, salt: number) => {
-  let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(salt, 2147483647);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(salt, 0x9e3779b1);
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 };
 
