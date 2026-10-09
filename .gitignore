@@ -2,6 +2,8 @@
 vendor/
 public/tilesets/limezu-*
 public/sprites/
+# referência visual só local (personagem estilo Pokémon e brasão da UFRN)
+docs/superpowers/specs/2026-10-08-biogame-referencia-visual.jpg
 # ferramentas locais
 .superpowers/
 .playwright-mcp/

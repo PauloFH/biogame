@@ -7,11 +7,11 @@
 ## Objetivo
 
 Jogo educacional no navegador, top-down, com a mecânica do **WorkAdventure** e o visual da
-**referência abaixo** (pixel art estilo Pokémon de GBA), ambientado no
+**referência visual** (pixel art estilo Pokémon de GBA).
 
-![Referência visual](2026-10-08-biogame-referencia-visual.jpg)
-
-**Referência visual oficial.** O que importa nela: tiles 16×16 com contorno e sombreado estilo
+**Referência visual oficial** (só local, fora do git: `2026-10-08-biogame-referencia-visual.jpg`
+nesta pasta; tem um personagem no estilo Pokémon e o brasão da UFRN, então não vai para o
+repositório público). O que importa nela: tiles 16×16 com contorno e sombreado estilo
 GBA; caixas de diálogo de borda dupla arredondada; banner com o nome do local no canto superior
 esquerdo; minimapa com o nome do setor no canto superior direito; identidade da UFRN (brasão,
 placas como DACB, janela para a Mata dos Saguis). **Nenhum asset da Nintendo** (sprites,
