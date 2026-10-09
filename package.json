@@ -9,7 +9,8 @@
     "test": "node --test \"src/**/*.test.ts\" \"tools/**/*.test.ts\"",
     "vendor": "node tools/vendor.ts",
     "tiles": "node tools/tilegen.ts",
-    "maps": "node tools/maps.ts"
+    "maps": "node tools/maps.ts",
+    "osm:fetch": "node tools/osm-data.ts"
   },
   "dependencies": {
     "phaser": "4.2.1"
